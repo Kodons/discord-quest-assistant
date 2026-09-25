@@ -10,13 +10,27 @@ const { executeActivityTask } = require("./activityTask");
 async function enrollQuest(quest, api, log) {
     log(`Mendaftarkan (enroll) quest: ${quest.name}...`);
     try {
-        await api.post({ url: `/quests/${quest.id}/enroll` });
+        await api.post({
+            url: `/quests/${quest.id}/enroll`,
+            body: { location: 11 }
+        });
         log(`Berhasil enroll quest: ${quest.name}`, "success");
         quest.isEnrolled = true;
         return true;
     } catch (err) {
-        log(`Gagal enroll ${quest.name}: ${err?.message || "Error"}`, "error");
-        return false;
+        try {
+            await api.post({
+                url: `/quests/${quest.id}/enroll`,
+                body: { location: 1 }
+            });
+            log(`Berhasil enroll quest: ${quest.name} (fallback)`, "success");
+            quest.isEnrolled = true;
+            return true;
+        } catch (err2) {
+            const errMsg = err?.body?.message || err?.message || "Bad Request";
+            log(`Gagal enroll ${quest.name}: ${errMsg}`, "error");
+            return false;
+        }
     }
 }
 
@@ -41,7 +55,9 @@ async function runQuestQueue(questList, stores, callbacks) {
         // Auto enroll jika belum
         if (!quest.isEnrolled) {
             const enrolled = await enrollQuest(quest, api, log);
-            if (!enrolled) continue;
+            if (!enrolled) {
+                log(`Mencoba memproses ${quest.name} meskipun enroll otomatis belum berhasil...`, "info");
+            }
         }
 
         log(`Mulai memproses: ${quest.name} (${quest.taskType})...`);
