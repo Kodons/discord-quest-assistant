@@ -38,38 +38,54 @@ function initOverlay(stores) {
             <div class="dqu-stats">
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Mode App</span>
-                    <span class="dqu-stats-val">${isDesktopApp ? "Desktop Native" : "Web Browser"}</span>
+                    <span class="dqu-stats-val">
+                        <span class="dqu-dot green"></span>
+                        ${isDesktopApp ? "Desktop Native" : "Web Client"}
+                    </span>
                 </div>
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Sisa Quest</span>
-                    <span class="dqu-stats-val" id="dqu-stats-count">0</span>
+                    <span class="dqu-stats-val" id="dqu-stats-count">
+                        <span class="dqu-dot blue"></span> 0
+                    </span>
                 </div>
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Status</span>
-                    <span class="dqu-stats-val" id="dqu-status-text" style="color:#23a55a">Idle</span>
+                    <span class="dqu-stats-val" id="dqu-status-text" style="color:#23a55a">
+                        <span class="dqu-dot green" id="dqu-status-dot"></span> Idle
+                    </span>
                 </div>
             </div>
 
-            <div class="dqu-filters">
-                <input type="text" class="dqu-search-input" id="dqu-filter-search" placeholder="🔍 Cari game, quest, atau hadiah (mis: Orbs, Border)..." />
-                <div class="dqu-filter-row">
-                    <select class="dqu-select" id="dqu-filter-status" title="Filter Status">
+            <!-- Filter & Search Controls -->
+            <div class="dqu-filter-box">
+                <div class="dqu-search-row">
+                    <div class="dqu-search-wrap">
+                        <span class="dqu-search-icon">🔍</span>
+                        <input type="text" class="dqu-search-input" id="dqu-filter-search" placeholder="Cari nama game atau hadiah (mis: Orbs, Border)..." />
+                        <button class="dqu-search-clear" id="dqu-search-clear" title="Bersihkan">✕</button>
+                    </div>
+                    <select class="dqu-status-select" id="dqu-filter-status" title="Filter Status Quest">
                         <option value="ACTIVE">⏳ Belum Selesai</option>
                         <option value="ALL">📋 Semua Status</option>
                         <option value="DONE">✅ Sudah Selesai</option>
                     </select>
-                    <select class="dqu-select" id="dqu-filter-method" title="Filter Metode">
-                        <option value="ALL">⚡ Semua Tipe</option>
-                        <option value="AUTO">⚡ 100% Otomatis Saja</option>
-                        <option value="MANUAL">🎮 Mini-Game Saja</option>
-                    </select>
-                    <select class="dqu-select" id="dqu-filter-reward" title="Filter Hadiah">
-                        <option value="ALL">🎁 Semua Hadiah</option>
-                        <option value="ORBS">🔮 Orbs</option>
-                        <option value="BORDER">🖼️ Border / Frame</option>
-                        <option value="ITEM">🎮 In-Game Item</option>
-                        <option value="NITRO">✨ Nitro</option>
-                    </select>
+                </div>
+
+                <!-- Category Pills -->
+                <div class="dqu-pills-row" id="dqu-pills-container">
+                    <button class="dqu-pill active" data-category="ALL">🌟 Semua</button>
+                    <button class="dqu-pill" data-category="AUTO">⚡ 100% Auto</button>
+                    <button class="dqu-pill" data-category="ORBS">🔮 Orbs</button>
+                    <button class="dqu-pill" data-category="BORDER">🖼️ Border</button>
+                    <button class="dqu-pill" data-category="ITEM">🎮 Item</button>
+                    <button class="dqu-pill" data-category="MANUAL">🕹️ Mini-Game</button>
+                </div>
+
+                <!-- Info bar -->
+                <div class="dqu-filter-info">
+                    <span id="dqu-filter-count-text">Memuat quest...</span>
+                    <span class="dqu-filter-reset" id="dqu-filter-reset-btn" style="display:none;">Reset Filter</span>
                 </div>
             </div>
 
@@ -91,6 +107,7 @@ function initOverlay(stores) {
     const logBox = root.querySelector("#dqu-log-output");
     const listContainer = root.querySelector("#dqu-list-container");
     const statusText = root.querySelector("#dqu-status-text");
+    const statusDot = root.querySelector("#dqu-status-dot");
     const countText = root.querySelector("#dqu-stats-count");
     const btnStartAll = root.querySelector("#dqu-btn-start-all");
     const btnStop = root.querySelector("#dqu-btn-stop");
@@ -101,11 +118,14 @@ function initOverlay(stores) {
     const bodyContent = root.querySelector("#dqu-content");
 
     const filterSearch = root.querySelector("#dqu-filter-search");
+    const filterSearchClear = root.querySelector("#dqu-search-clear");
     const filterStatus = root.querySelector("#dqu-filter-status");
-    const filterMethod = root.querySelector("#dqu-filter-method");
-    const filterReward = root.querySelector("#dqu-filter-reward");
+    const pillsContainer = root.querySelector("#dqu-pills-container");
+    const filterCountText = root.querySelector("#dqu-filter-count-text");
+    const filterResetBtn = root.querySelector("#dqu-filter-reset-btn");
 
     let cachedQuests = [];
+    let selectedCategory = "ALL";
 
     function log(msg, type = "info") {
         const time = new Date().toLocaleTimeString();
@@ -127,38 +147,71 @@ function initOverlay(stores) {
         btnMin.textContent = isHidden ? "_" : "□";
     });
 
-    // Event listeners untuk filter
-    filterSearch.addEventListener("input", () => renderList());
+    // Event listener: Search input
+    filterSearch.addEventListener("input", () => {
+        filterSearchClear.style.display = filterSearch.value ? "block" : "none";
+        renderList();
+    });
+
+    filterSearchClear.addEventListener("click", () => {
+        filterSearch.value = "";
+        filterSearchClear.style.display = "none";
+        filterSearch.focus();
+        renderList();
+    });
+
+    // Event listener: Status Select
     filterStatus.addEventListener("change", () => renderList());
-    filterMethod.addEventListener("change", () => renderList());
-    filterReward.addEventListener("change", () => renderList());
+
+    // Event listener: Category Pills
+    pillsContainer.querySelectorAll(".dqu-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            pillsContainer.querySelectorAll(".dqu-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            selectedCategory = pill.dataset.category || "ALL";
+            renderList();
+        });
+    });
+
+    // Event listener: Reset Filter
+    filterResetBtn.addEventListener("click", () => {
+        filterSearch.value = "";
+        filterSearchClear.style.display = "none";
+        filterStatus.value = "ACTIVE";
+        selectedCategory = "ALL";
+        pillsContainer.querySelectorAll(".dqu-pill").forEach(p => {
+            p.classList.toggle("active", p.dataset.category === "ALL");
+        });
+        renderList();
+    });
 
     // Render Quests
     function renderList(quests = cachedQuests) {
         listContainer.innerHTML = "";
 
         const uncompletedAll = quests.filter(q => !q.isCompleted);
-        countText.textContent = `${uncompletedAll.length} Aktif`;
+        countText.innerHTML = `<span class="dqu-dot blue"></span> ${uncompletedAll.length} Aktif`;
 
         // Terapkan Filter
         const statusVal = filterStatus.value;
-        const methodVal = filterMethod.value;
-        const rewardVal = filterReward.value;
         const searchVal = filterSearch.value.trim().toLowerCase();
+
+        const isFiltered = statusVal !== "ACTIVE" || selectedCategory !== "ALL" || searchVal !== "";
+        filterResetBtn.style.display = isFiltered ? "inline-block" : "none";
 
         const filtered = quests.filter(q => {
             // Filter Status
             if (statusVal === "ACTIVE" && q.isCompleted) return false;
             if (statusVal === "DONE" && !q.isCompleted) return false;
 
-            // Filter Metode
-            if (methodVal === "AUTO" && !q.executionMethod?.isAuto) return false;
-            if (methodVal === "MANUAL" && q.executionMethod?.isAuto) return false;
+            // Filter Category Pill
+            if (selectedCategory === "AUTO" && !q.executionMethod?.isAuto) return false;
+            if (selectedCategory === "MANUAL" && q.executionMethod?.isAuto) return false;
+            if (selectedCategory === "ORBS" && q.reward?.type !== "ORBS") return false;
+            if (selectedCategory === "BORDER" && q.reward?.type !== "BORDER") return false;
+            if (selectedCategory === "ITEM" && q.reward?.type !== "ITEM") return false;
 
-            // Filter Hadiah
-            if (rewardVal !== "ALL" && q.reward?.type !== rewardVal) return false;
-
-            // Filter Search
+            // Filter Search Text
             if (searchVal) {
                 const combined = `${q.name} ${q.gameTitle} ${q.reward?.name || ""} ${q.taskType}`.toLowerCase();
                 if (!combined.includes(searchVal)) return false;
@@ -167,28 +220,36 @@ function initOverlay(stores) {
             return true;
         });
 
+        filterCountText.textContent = `Menampilkan ${filtered.length} dari ${quests.length} quest`;
+
         if (filtered.length === 0) {
             listContainer.innerHTML = `
-                <div style="text-align:center;padding:18px;color:#949ba4;">
-                    <div>Tidak ada quest yang cocok dengan filter.</div>
-                    ${quests.length === 0 ? `<button class="dqu-btn sm" id="dqu-btn-force-fetch" style="margin: 10px auto 0 auto;">↻ Ambil Ulang via API Discord</button>` : ""}
+                <div style="text-align:center;padding:24px 12px;color:#949ba4;">
+                    <div style="font-size:24px;margin-bottom:6px;">🔍</div>
+                    <div style="font-weight:600;color:#dbdee1;">Tidak ada quest yang cocok</div>
+                    <div style="font-size:11px;margin-top:2px;">Coba ubah kata kunci atau ganti filter di atas.</div>
                 </div>
             `;
-            const forceBtn = listContainer.querySelector("#dqu-btn-force-fetch");
-            if (forceBtn) {
-                forceBtn.addEventListener("click", () => refreshQuests(true));
-            }
             return;
         }
 
         filtered.forEach(q => {
             const card = document.createElement("div");
-            card.className = `dqu-quest-card ${state.activeQuest?.id === q.id ? "active" : ""}`;
+
+            // Tentukan accent border kiri
+            let accentClass = "accent-default";
+            if (q.reward?.type === "ORBS") accentClass = "accent-orb";
+            else if (q.reward?.type === "BORDER") accentClass = "accent-border";
+            else if (q.reward?.type === "ITEM") accentClass = "accent-item";
+            else if (q.reward?.type === "NITRO") accentClass = "accent-nitro";
+
+            card.className = `dqu-quest-card ${accentClass} ${state.activeQuest?.id === q.id ? "active" : ""}`;
 
             const percent = q.targetSeconds > 0 ? Math.min(100, Math.round((q.currentSeconds / q.targetSeconds) * 100)) : 0;
+            const isDone = q.isCompleted;
+
             let badgeClass = "active";
-            if (q.isCompleted) badgeClass = "done";
-            else if (q.taskType.includes("VIDEO")) badgeClass = "video";
+            if (isDone) badgeClass = "done";
 
             const displayTaskName = q.taskType
                 .replace("_ON_DESKTOP", "")
@@ -199,32 +260,36 @@ function initOverlay(stores) {
             const methodTagHtml = q.executionMethod ? `<span class="dqu-method-tag ${q.executionMethod.tagClass}">${q.executionMethod.label}</span>` : "";
 
             const isItemCount = q.taskType === "ACHIEVEMENT_IN_ACTIVITY";
-            const progressDisplay = isItemCount
+            const progressDisplay = isDone
+                ? "Selesai (100%)"
+                : isItemCount
                 ? `${percent}% (${q.currentSeconds} / ${q.targetSeconds} item)`
                 : `${percent}% (${Math.floor(q.currentSeconds / 60)} / ${Math.ceil(q.targetSeconds / 60)} mnt)`;
 
             card.innerHTML = `
                 <div class="dqu-quest-header">
-                    <div style="flex:1;min-width:0;">
+                    <div class="dqu-quest-title-wrap">
                         <div class="dqu-quest-name">${q.name}</div>
-                        <div style="display:flex;gap:4px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+                        <div class="dqu-quest-tags">
                             ${rewardTagHtml}
-                            <span style="font-size:11px;color:#949ba4;">${q.gameTitle || q.taskType}</span>
+                            <span style="font-size:11px;color:#949ba4;">${q.gameTitle || displayTaskName}</span>
                         </div>
                     </div>
                     <div class="dqu-quest-badges">
                         ${methodTagHtml}
-                        <span class="dqu-badge ${badgeClass}">${q.isCompleted ? "Selesai" : displayTaskName}</span>
+                        <span class="dqu-badge ${badgeClass}">${isDone ? "Selesai" : displayTaskName}</span>
                     </div>
                 </div>
+
                 <div class="dqu-progress-wrap">
-                    <div class="dqu-progress-bar" style="width: ${q.isCompleted ? 100 : percent}%;"></div>
+                    <div class="dqu-progress-bar ${isDone ? "done" : ""}" style="width: ${isDone ? 100 : percent}%;"></div>
                 </div>
+
                 <div class="dqu-quest-footer">
                     <span>${progressDisplay}</span>
                     <div style="display:flex;gap:4px;">
-                        ${!q.isEnrolled ? `<button class="dqu-btn sm secondary dqu-btn-enroll" data-id="${q.id}">Enroll</button>` : ""}
-                        ${!q.isCompleted ? `<button class="dqu-btn sm dqu-btn-play-single" data-id="${q.id}" ${state.isRunning ? "disabled" : ""}>${q.executionMethod?.isAuto ? "Start" : "Pantau"}</button>` : ""}
+                        ${!q.isEnrolled && !isDone ? `<button class="dqu-btn sm secondary dqu-btn-enroll" data-id="${q.id}">Enroll</button>` : ""}
+                        ${!isDone ? `<button class="dqu-btn sm dqu-btn-play-single" data-id="${q.id}" ${state.isRunning ? "disabled" : ""}>${q.executionMethod?.isAuto ? "▶ Start" : "👁️ Pantau"}</button>` : `<span style="color:#23a55a;font-weight:700;">✓ Selesai</span>`}
                     </div>
                 </div>
             `;
@@ -249,7 +314,7 @@ function initOverlay(stores) {
     }
 
     async function refreshQuests(showToast = false) {
-        statusText.textContent = "Loading...";
+        statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Loading...`;
         statusText.style.color = "#f0b232";
 
         // 1. Ambil dari QuestsStore
@@ -271,8 +336,13 @@ function initOverlay(stores) {
         cachedQuests = parsed;
         renderList(cachedQuests);
 
-        statusText.textContent = state.isRunning ? "Berjalan" : "Idle";
-        statusText.style.color = state.isRunning ? "#5865f2" : "#23a55a";
+        if (state.isRunning) {
+            statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Berjalan`;
+            statusText.style.color = "#5865f2";
+        } else {
+            statusText.innerHTML = `<span class="dqu-dot green"></span> Idle`;
+            statusText.style.color = "#23a55a";
+        }
 
         if (showToast || parsed.length > 0) {
             const activeCount = cachedQuests.filter(q => !q.isCompleted).length;
@@ -284,14 +354,14 @@ function initOverlay(stores) {
         onStart: () => {
             btnStartAll.disabled = true;
             btnStop.disabled = false;
-            statusText.textContent = "Berjalan";
+            statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Berjalan`;
             statusText.style.color = "#5865f2";
             renderList();
         },
         onStop: () => {
             btnStartAll.disabled = false;
             btnStop.disabled = true;
-            statusText.textContent = "Idle";
+            statusText.innerHTML = `<span class="dqu-dot green"></span> Idle`;
             statusText.style.color = "#23a55a";
             renderList();
         },
@@ -325,7 +395,7 @@ function initOverlay(stores) {
             }
             startExecution(autoQuests);
         } else {
-            log(`Semua quest aktif bertipe Mini-Game/Activity. Silakan klik tombol "Pantau" pada kartu quest yang ingin kamu buka di Voice Channel!`, "info");
+            log(`Semua quest aktif bertipe Mini-Game/Activity. Silakan klik tombol "👁️ Pantau" pada kartu quest yang ingin kamu buka di Voice Channel!`, "info");
         }
     });
 

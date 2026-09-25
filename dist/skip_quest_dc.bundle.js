@@ -1,6 +1,6 @@
 /**
  * Discord Quest Auto-Completer & Bypass Tool (Bundled)
- * Generated at: 2026-09-25T18:51:01.579Z
+ * Generated at: 2026-09-25T18:53:45.315Z
  * Source modules: 13 files from src/
  */
 (function () {
@@ -1127,38 +1127,54 @@ function initOverlay(stores) {
             <div class="dqu-stats">
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Mode App</span>
-                    <span class="dqu-stats-val">${isDesktopApp ? "Desktop Native" : "Web Browser"}</span>
+                    <span class="dqu-stats-val">
+                        <span class="dqu-dot green"></span>
+                        ${isDesktopApp ? "Desktop Native" : "Web Client"}
+                    </span>
                 </div>
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Sisa Quest</span>
-                    <span class="dqu-stats-val" id="dqu-stats-count">0</span>
+                    <span class="dqu-stats-val" id="dqu-stats-count">
+                        <span class="dqu-dot blue"></span> 0
+                    </span>
                 </div>
                 <div class="dqu-stats-item">
                     <span class="dqu-stats-label">Status</span>
-                    <span class="dqu-stats-val" id="dqu-status-text" style="color:#23a55a">Idle</span>
+                    <span class="dqu-stats-val" id="dqu-status-text" style="color:#23a55a">
+                        <span class="dqu-dot green" id="dqu-status-dot"></span> Idle
+                    </span>
                 </div>
             </div>
 
-            <div class="dqu-filters">
-                <input type="text" class="dqu-search-input" id="dqu-filter-search" placeholder="🔍 Cari game, quest, atau hadiah (mis: Orbs, Border)..." />
-                <div class="dqu-filter-row">
-                    <select class="dqu-select" id="dqu-filter-status" title="Filter Status">
+            <!-- Filter & Search Controls -->
+            <div class="dqu-filter-box">
+                <div class="dqu-search-row">
+                    <div class="dqu-search-wrap">
+                        <span class="dqu-search-icon">🔍</span>
+                        <input type="text" class="dqu-search-input" id="dqu-filter-search" placeholder="Cari nama game atau hadiah (mis: Orbs, Border)..." />
+                        <button class="dqu-search-clear" id="dqu-search-clear" title="Bersihkan">✕</button>
+                    </div>
+                    <select class="dqu-status-select" id="dqu-filter-status" title="Filter Status Quest">
                         <option value="ACTIVE">⏳ Belum Selesai</option>
                         <option value="ALL">📋 Semua Status</option>
                         <option value="DONE">✅ Sudah Selesai</option>
                     </select>
-                    <select class="dqu-select" id="dqu-filter-method" title="Filter Metode">
-                        <option value="ALL">⚡ Semua Tipe</option>
-                        <option value="AUTO">⚡ 100% Otomatis Saja</option>
-                        <option value="MANUAL">🎮 Mini-Game Saja</option>
-                    </select>
-                    <select class="dqu-select" id="dqu-filter-reward" title="Filter Hadiah">
-                        <option value="ALL">🎁 Semua Hadiah</option>
-                        <option value="ORBS">🔮 Orbs</option>
-                        <option value="BORDER">🖼️ Border / Frame</option>
-                        <option value="ITEM">🎮 In-Game Item</option>
-                        <option value="NITRO">✨ Nitro</option>
-                    </select>
+                </div>
+
+                <!-- Category Pills -->
+                <div class="dqu-pills-row" id="dqu-pills-container">
+                    <button class="dqu-pill active" data-category="ALL">🌟 Semua</button>
+                    <button class="dqu-pill" data-category="AUTO">⚡ 100% Auto</button>
+                    <button class="dqu-pill" data-category="ORBS">🔮 Orbs</button>
+                    <button class="dqu-pill" data-category="BORDER">🖼️ Border</button>
+                    <button class="dqu-pill" data-category="ITEM">🎮 Item</button>
+                    <button class="dqu-pill" data-category="MANUAL">🕹️ Mini-Game</button>
+                </div>
+
+                <!-- Info bar -->
+                <div class="dqu-filter-info">
+                    <span id="dqu-filter-count-text">Memuat quest...</span>
+                    <span class="dqu-filter-reset" id="dqu-filter-reset-btn" style="display:none;">Reset Filter</span>
                 </div>
             </div>
 
@@ -1180,6 +1196,7 @@ function initOverlay(stores) {
     const logBox = root.querySelector("#dqu-log-output");
     const listContainer = root.querySelector("#dqu-list-container");
     const statusText = root.querySelector("#dqu-status-text");
+    const statusDot = root.querySelector("#dqu-status-dot");
     const countText = root.querySelector("#dqu-stats-count");
     const btnStartAll = root.querySelector("#dqu-btn-start-all");
     const btnStop = root.querySelector("#dqu-btn-stop");
@@ -1190,11 +1207,14 @@ function initOverlay(stores) {
     const bodyContent = root.querySelector("#dqu-content");
 
     const filterSearch = root.querySelector("#dqu-filter-search");
+    const filterSearchClear = root.querySelector("#dqu-search-clear");
     const filterStatus = root.querySelector("#dqu-filter-status");
-    const filterMethod = root.querySelector("#dqu-filter-method");
-    const filterReward = root.querySelector("#dqu-filter-reward");
+    const pillsContainer = root.querySelector("#dqu-pills-container");
+    const filterCountText = root.querySelector("#dqu-filter-count-text");
+    const filterResetBtn = root.querySelector("#dqu-filter-reset-btn");
 
     let cachedQuests = [];
+    let selectedCategory = "ALL";
 
     function log(msg, type = "info") {
         const time = new Date().toLocaleTimeString();
@@ -1216,38 +1236,71 @@ function initOverlay(stores) {
         btnMin.textContent = isHidden ? "_" : "□";
     });
 
-    // Event listeners untuk filter
-    filterSearch.addEventListener("input", () => renderList());
+    // Event listener: Search input
+    filterSearch.addEventListener("input", () => {
+        filterSearchClear.style.display = filterSearch.value ? "block" : "none";
+        renderList();
+    });
+
+    filterSearchClear.addEventListener("click", () => {
+        filterSearch.value = "";
+        filterSearchClear.style.display = "none";
+        filterSearch.focus();
+        renderList();
+    });
+
+    // Event listener: Status Select
     filterStatus.addEventListener("change", () => renderList());
-    filterMethod.addEventListener("change", () => renderList());
-    filterReward.addEventListener("change", () => renderList());
+
+    // Event listener: Category Pills
+    pillsContainer.querySelectorAll(".dqu-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+            pillsContainer.querySelectorAll(".dqu-pill").forEach(p => p.classList.remove("active"));
+            pill.classList.add("active");
+            selectedCategory = pill.dataset.category || "ALL";
+            renderList();
+        });
+    });
+
+    // Event listener: Reset Filter
+    filterResetBtn.addEventListener("click", () => {
+        filterSearch.value = "";
+        filterSearchClear.style.display = "none";
+        filterStatus.value = "ACTIVE";
+        selectedCategory = "ALL";
+        pillsContainer.querySelectorAll(".dqu-pill").forEach(p => {
+            p.classList.toggle("active", p.dataset.category === "ALL");
+        });
+        renderList();
+    });
 
     // Render Quests
     function renderList(quests = cachedQuests) {
         listContainer.innerHTML = "";
 
         const uncompletedAll = quests.filter(q => !q.isCompleted);
-        countText.textContent = `${uncompletedAll.length} Aktif`;
+        countText.innerHTML = `<span class="dqu-dot blue"></span> ${uncompletedAll.length} Aktif`;
 
         // Terapkan Filter
         const statusVal = filterStatus.value;
-        const methodVal = filterMethod.value;
-        const rewardVal = filterReward.value;
         const searchVal = filterSearch.value.trim().toLowerCase();
+
+        const isFiltered = statusVal !== "ACTIVE" || selectedCategory !== "ALL" || searchVal !== "";
+        filterResetBtn.style.display = isFiltered ? "inline-block" : "none";
 
         const filtered = quests.filter(q => {
             // Filter Status
             if (statusVal === "ACTIVE" && q.isCompleted) return false;
             if (statusVal === "DONE" && !q.isCompleted) return false;
 
-            // Filter Metode
-            if (methodVal === "AUTO" && !q.executionMethod?.isAuto) return false;
-            if (methodVal === "MANUAL" && q.executionMethod?.isAuto) return false;
+            // Filter Category Pill
+            if (selectedCategory === "AUTO" && !q.executionMethod?.isAuto) return false;
+            if (selectedCategory === "MANUAL" && q.executionMethod?.isAuto) return false;
+            if (selectedCategory === "ORBS" && q.reward?.type !== "ORBS") return false;
+            if (selectedCategory === "BORDER" && q.reward?.type !== "BORDER") return false;
+            if (selectedCategory === "ITEM" && q.reward?.type !== "ITEM") return false;
 
-            // Filter Hadiah
-            if (rewardVal !== "ALL" && q.reward?.type !== rewardVal) return false;
-
-            // Filter Search
+            // Filter Search Text
             if (searchVal) {
                 const combined = `${q.name} ${q.gameTitle} ${q.reward?.name || ""} ${q.taskType}`.toLowerCase();
                 if (!combined.includes(searchVal)) return false;
@@ -1256,28 +1309,36 @@ function initOverlay(stores) {
             return true;
         });
 
+        filterCountText.textContent = `Menampilkan ${filtered.length} dari ${quests.length} quest`;
+
         if (filtered.length === 0) {
             listContainer.innerHTML = `
-                <div style="text-align:center;padding:18px;color:#949ba4;">
-                    <div>Tidak ada quest yang cocok dengan filter.</div>
-                    ${quests.length === 0 ? `<button class="dqu-btn sm" id="dqu-btn-force-fetch" style="margin: 10px auto 0 auto;">↻ Ambil Ulang via API Discord</button>` : ""}
+                <div style="text-align:center;padding:24px 12px;color:#949ba4;">
+                    <div style="font-size:24px;margin-bottom:6px;">🔍</div>
+                    <div style="font-weight:600;color:#dbdee1;">Tidak ada quest yang cocok</div>
+                    <div style="font-size:11px;margin-top:2px;">Coba ubah kata kunci atau ganti filter di atas.</div>
                 </div>
             `;
-            const forceBtn = listContainer.querySelector("#dqu-btn-force-fetch");
-            if (forceBtn) {
-                forceBtn.addEventListener("click", () => refreshQuests(true));
-            }
             return;
         }
 
         filtered.forEach(q => {
             const card = document.createElement("div");
-            card.className = `dqu-quest-card ${state.activeQuest?.id === q.id ? "active" : ""}`;
+
+            // Tentukan accent border kiri
+            let accentClass = "accent-default";
+            if (q.reward?.type === "ORBS") accentClass = "accent-orb";
+            else if (q.reward?.type === "BORDER") accentClass = "accent-border";
+            else if (q.reward?.type === "ITEM") accentClass = "accent-item";
+            else if (q.reward?.type === "NITRO") accentClass = "accent-nitro";
+
+            card.className = `dqu-quest-card ${accentClass} ${state.activeQuest?.id === q.id ? "active" : ""}`;
 
             const percent = q.targetSeconds > 0 ? Math.min(100, Math.round((q.currentSeconds / q.targetSeconds) * 100)) : 0;
+            const isDone = q.isCompleted;
+
             let badgeClass = "active";
-            if (q.isCompleted) badgeClass = "done";
-            else if (q.taskType.includes("VIDEO")) badgeClass = "video";
+            if (isDone) badgeClass = "done";
 
             const displayTaskName = q.taskType
                 .replace("_ON_DESKTOP", "")
@@ -1288,32 +1349,36 @@ function initOverlay(stores) {
             const methodTagHtml = q.executionMethod ? `<span class="dqu-method-tag ${q.executionMethod.tagClass}">${q.executionMethod.label}</span>` : "";
 
             const isItemCount = q.taskType === "ACHIEVEMENT_IN_ACTIVITY";
-            const progressDisplay = isItemCount
+            const progressDisplay = isDone
+                ? "Selesai (100%)"
+                : isItemCount
                 ? `${percent}% (${q.currentSeconds} / ${q.targetSeconds} item)`
                 : `${percent}% (${Math.floor(q.currentSeconds / 60)} / ${Math.ceil(q.targetSeconds / 60)} mnt)`;
 
             card.innerHTML = `
                 <div class="dqu-quest-header">
-                    <div style="flex:1;min-width:0;">
+                    <div class="dqu-quest-title-wrap">
                         <div class="dqu-quest-name">${q.name}</div>
-                        <div style="display:flex;gap:4px;align-items:center;margin-top:4px;flex-wrap:wrap;">
+                        <div class="dqu-quest-tags">
                             ${rewardTagHtml}
-                            <span style="font-size:11px;color:#949ba4;">${q.gameTitle || q.taskType}</span>
+                            <span style="font-size:11px;color:#949ba4;">${q.gameTitle || displayTaskName}</span>
                         </div>
                     </div>
                     <div class="dqu-quest-badges">
                         ${methodTagHtml}
-                        <span class="dqu-badge ${badgeClass}">${q.isCompleted ? "Selesai" : displayTaskName}</span>
+                        <span class="dqu-badge ${badgeClass}">${isDone ? "Selesai" : displayTaskName}</span>
                     </div>
                 </div>
+
                 <div class="dqu-progress-wrap">
-                    <div class="dqu-progress-bar" style="width: ${q.isCompleted ? 100 : percent}%;"></div>
+                    <div class="dqu-progress-bar ${isDone ? "done" : ""}" style="width: ${isDone ? 100 : percent}%;"></div>
                 </div>
+
                 <div class="dqu-quest-footer">
                     <span>${progressDisplay}</span>
                     <div style="display:flex;gap:4px;">
-                        ${!q.isEnrolled ? `<button class="dqu-btn sm secondary dqu-btn-enroll" data-id="${q.id}">Enroll</button>` : ""}
-                        ${!q.isCompleted ? `<button class="dqu-btn sm dqu-btn-play-single" data-id="${q.id}" ${state.isRunning ? "disabled" : ""}>${q.executionMethod?.isAuto ? "Start" : "Pantau"}</button>` : ""}
+                        ${!q.isEnrolled && !isDone ? `<button class="dqu-btn sm secondary dqu-btn-enroll" data-id="${q.id}">Enroll</button>` : ""}
+                        ${!isDone ? `<button class="dqu-btn sm dqu-btn-play-single" data-id="${q.id}" ${state.isRunning ? "disabled" : ""}>${q.executionMethod?.isAuto ? "▶ Start" : "👁️ Pantau"}</button>` : `<span style="color:#23a55a;font-weight:700;">✓ Selesai</span>`}
                     </div>
                 </div>
             `;
@@ -1338,7 +1403,7 @@ function initOverlay(stores) {
     }
 
     async function refreshQuests(showToast = false) {
-        statusText.textContent = "Loading...";
+        statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Loading...`;
         statusText.style.color = "#f0b232";
 
         // 1. Ambil dari QuestsStore
@@ -1360,8 +1425,13 @@ function initOverlay(stores) {
         cachedQuests = parsed;
         renderList(cachedQuests);
 
-        statusText.textContent = state.isRunning ? "Berjalan" : "Idle";
-        statusText.style.color = state.isRunning ? "#5865f2" : "#23a55a";
+        if (state.isRunning) {
+            statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Berjalan`;
+            statusText.style.color = "#5865f2";
+        } else {
+            statusText.innerHTML = `<span class="dqu-dot green"></span> Idle`;
+            statusText.style.color = "#23a55a";
+        }
 
         if (showToast || parsed.length > 0) {
             const activeCount = cachedQuests.filter(q => !q.isCompleted).length;
@@ -1373,14 +1443,14 @@ function initOverlay(stores) {
         onStart: () => {
             btnStartAll.disabled = true;
             btnStop.disabled = false;
-            statusText.textContent = "Berjalan";
+            statusText.innerHTML = `<span class="dqu-dot blue pulse"></span> Berjalan`;
             statusText.style.color = "#5865f2";
             renderList();
         },
         onStop: () => {
             btnStartAll.disabled = false;
             btnStop.disabled = true;
-            statusText.textContent = "Idle";
+            statusText.innerHTML = `<span class="dqu-dot green"></span> Idle`;
             statusText.style.color = "#23a55a";
             renderList();
         },
@@ -1414,7 +1484,7 @@ function initOverlay(stores) {
             }
             startExecution(autoQuests);
         } else {
-            log(`Semua quest aktif bertipe Mini-Game/Activity. Silakan klik tombol "Pantau" pada kartu quest yang ingin kamu buka di Voice Channel!`, "info");
+            log(`Semua quest aktif bertipe Mini-Game/Activity. Silakan klik tombol "👁️ Pantau" pada kartu quest yang ingin kamu buka di Voice Channel!`, "info");
         }
     });
 
@@ -1466,13 +1536,15 @@ function createStyles(containerId) {
     return `
         #${containerId} {
             position: fixed;
-            top: 60px;
-            right: 40px;
-            width: 410px;
-            background: #1e1f22;
+            top: 50px;
+            right: 30px;
+            width: 440px;
+            background: rgba(30, 31, 34, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             color: #dbdee1;
-            border-radius: 12px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
             font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
             font-size: 13px;
             z-index: 99999;
@@ -1480,17 +1552,17 @@ function createStyles(containerId) {
             display: flex;
             flex-direction: column;
             user-select: none;
-            transition: width 0.2s ease, opacity 0.2s ease;
+            transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
         }
         #${containerId}.minimized {
-            width: 260px;
+            width: 280px;
         }
         #${containerId} * {
             box-sizing: border-box;
         }
         .dqu-header {
-            background: #2b2d31;
-            padding: 12px 14px;
+            background: rgba(43, 45, 49, 0.9);
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -1504,11 +1576,13 @@ function createStyles(containerId) {
             align-items: center;
             gap: 8px;
             font-size: 14px;
+            letter-spacing: 0.2px;
         }
         .dqu-title svg {
             fill: #5865f2;
-            width: 18px;
-            height: 18px;
+            width: 19px;
+            height: 19px;
+            filter: drop-shadow(0 0 6px rgba(88, 101, 242, 0.5));
         }
         .dqu-controls {
             display: flex;
@@ -1520,12 +1594,13 @@ function createStyles(containerId) {
             border: none;
             color: #949ba4;
             cursor: pointer;
-            padding: 4px;
+            padding: 4px 6px;
             border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.15s;
+            font-size: 12px;
+            transition: all 0.15s ease;
         }
         .dqu-btn-icon:hover {
             color: #f2f3f5;
@@ -1536,24 +1611,30 @@ function createStyles(containerId) {
             color: #ffffff;
         }
         .dqu-body {
-            padding: 12px 14px;
+            padding: 12px 16px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            max-height: 520px;
+            gap: 10px;
+            max-height: 560px;
             overflow-y: auto;
         }
         .dqu-body::-webkit-scrollbar {
             width: 6px;
         }
         .dqu-body::-webkit-scrollbar-thumb {
-            background: #1a1b1e;
+            background: rgba(255, 255, 255, 0.12);
             border-radius: 3px;
         }
+        .dqu-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Stats Bar */
         .dqu-stats {
-            background: #2b2d31;
+            background: rgba(43, 45, 49, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 8px;
-            padding: 10px;
+            padding: 8px 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -1563,31 +1644,99 @@ function createStyles(containerId) {
             flex-direction: column;
         }
         .dqu-stats-label {
-            font-size: 10px;
+            font-size: 9.5px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
             color: #949ba4;
-            font-weight: 600;
+            font-weight: 700;
         }
         .dqu-stats-val {
             font-weight: 700;
-            font-size: 14px;
+            font-size: 13.5px;
             color: #f2f3f5;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
-        .dqu-filters {
-            background: #2b2d31;
-            border-radius: 8px;
-            padding: 8px 10px;
+        .dqu-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dqu-dot.green { background: #23a55a; box-shadow: 0 0 6px #23a55a; }
+        .dqu-dot.blue { background: #5865f2; box-shadow: 0 0 6px #5865f2; }
+        .dqu-dot.pulse { animation: dquPulse 1.5s infinite; }
+        @keyframes dquPulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
+        }
+
+        /* Filter Section */
+        .dqu-filter-box {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 7px;
+            background: rgba(43, 45, 49, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 8px 10px;
         }
-        .dqu-filter-row {
+        .dqu-search-row {
             display: flex;
             gap: 6px;
             align-items: center;
         }
-        .dqu-select {
+        .dqu-search-wrap {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+        .dqu-search-icon {
+            position: absolute;
+            left: 8px;
+            color: #80848e;
+            font-size: 11px;
+            pointer-events: none;
+        }
+        .dqu-search-input {
+            width: 100%;
+            background: #1e1f22;
+            color: #f2f3f5;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 6px 26px 6px 26px;
+            font-size: 11.5px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .dqu-search-input:focus {
+            border-color: #5865f2;
+            box-shadow: 0 0 0 1px #5865f2;
+        }
+        .dqu-search-input::placeholder {
+            color: #80848e;
+        }
+        .dqu-search-clear {
+            position: absolute;
+            right: 6px;
+            background: transparent;
+            border: none;
+            color: #80848e;
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 4px;
+            border-radius: 50%;
+            display: none;
+        }
+        .dqu-search-clear:hover {
+            color: #f2f3f5;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .dqu-status-select {
             background: #1e1f22;
             color: #dbdee1;
             border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1596,66 +1745,139 @@ function createStyles(containerId) {
             font-size: 11px;
             font-family: inherit;
             cursor: pointer;
-            flex: 1;
             outline: none;
             transition: border-color 0.15s;
+            width: 130px;
         }
-        .dqu-select:focus, .dqu-select:hover {
+        .dqu-status-select:focus, .dqu-status-select:hover {
             border-color: #5865f2;
         }
-        .dqu-search-input {
-            background: #1e1f22;
+
+        /* Filter Pill Tabs */
+        .dqu-pills-row {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+        .dqu-pills-row::-webkit-scrollbar {
+            height: 3px;
+        }
+        .dqu-pills-row::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        .dqu-pill {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            color: #b5bac1;
+            font-size: 10.5px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .dqu-pill:hover {
+            background: rgba(255, 255, 255, 0.12);
             color: #f2f3f5;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 11px;
-            font-family: inherit;
-            outline: none;
-            width: 100%;
-            transition: border-color 0.15s;
         }
-        .dqu-search-input:focus {
+        .dqu-pill.active {
+            background: #5865f2;
+            color: #ffffff;
             border-color: #5865f2;
+            box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
         }
-        .dqu-search-input::placeholder {
-            color: #80848e;
+
+        /* Filter Info Count */
+        .dqu-filter-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 10.5px;
+            color: #949ba4;
+            padding: 0 2px;
         }
+        .dqu-filter-reset {
+            color: #5865f2;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .dqu-filter-reset:hover {
+            color: #7983f5;
+        }
+
+        /* Quest List */
         .dqu-quest-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            max-height: 250px;
+            max-height: 280px;
             overflow-y: auto;
+            padding-right: 2px;
         }
+        .dqu-quest-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        .dqu-quest-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        /* Quest Card */
         .dqu-quest-card {
             background: #2b2d31;
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 8px;
-            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-left: 3.5px solid #5865f2;
+            border-radius: 9px;
+            padding: 10px 12px;
             display: flex;
             flex-direction: column;
-            gap: 6px;
-            transition: transform 0.15s, border-color 0.15s;
+            gap: 7px;
+            transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
         .dqu-quest-card:hover {
             border-color: rgba(88, 101, 242, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
+        .dqu-quest-card.accent-orb { border-left-color: #9b59b6; }
+        .dqu-quest-card.accent-border { border-left-color: #3498db; }
+        .dqu-quest-card.accent-item { border-left-color: #2ecc71; }
+        .dqu-quest-card.accent-nitro { border-left-color: #f1c40f; }
         .dqu-quest-card.active {
             border-color: #5865f2;
-            background: rgba(88, 101, 242, 0.1);
+            background: rgba(88, 101, 242, 0.08);
         }
+
         .dqu-quest-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             gap: 8px;
         }
+        .dqu-quest-title-wrap {
+            flex: 1;
+            min-width: 0;
+        }
         .dqu-quest-name {
-            font-weight: 600;
+            font-weight: 700;
             color: #f2f3f5;
             font-size: 13px;
-            line-height: 1.2;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+        .dqu-quest-tags {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-top: 4px;
+            flex-wrap: wrap;
         }
         .dqu-quest-badges {
             display: flex;
@@ -1664,8 +1886,9 @@ function createStyles(containerId) {
             flex-wrap: wrap;
             justify-content: flex-end;
         }
+
         .dqu-badge {
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 700;
             padding: 2px 6px;
             border-radius: 4px;
@@ -1677,34 +1900,34 @@ function createStyles(containerId) {
         .dqu-badge.done {
             background: rgba(35, 165, 90, 0.2);
             color: #23a55a;
+            border: 1px solid rgba(35, 165, 90, 0.3);
         }
         .dqu-badge.active {
             background: rgba(88, 101, 242, 0.2);
             color: #5865f2;
+            border: 1px solid rgba(88, 101, 242, 0.3);
         }
-        .dqu-badge.video {
-            background: rgba(240, 178, 50, 0.2);
-            color: #f0b232;
-        }
+
         .dqu-method-tag {
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 700;
             padding: 2px 6px;
             border-radius: 4px;
             white-space: nowrap;
         }
         .dqu-method-tag.auto {
-            background: rgba(88, 101, 242, 0.25);
-            color: #5865f2;
-            border: 1px solid rgba(88, 101, 242, 0.4);
+            background: rgba(88, 101, 242, 0.2);
+            color: #7983f5;
+            border: 1px solid rgba(88, 101, 242, 0.35);
         }
         .dqu-method-tag.manual {
             background: rgba(235, 69, 158, 0.2);
-            color: #eb459e;
-            border: 1px solid rgba(235, 69, 158, 0.4);
+            color: #f47fff;
+            border: 1px solid rgba(235, 69, 158, 0.35);
         }
+
         .dqu-reward-tag {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 600;
             padding: 2px 7px;
             border-radius: 4px;
@@ -1714,30 +1937,31 @@ function createStyles(containerId) {
             white-space: nowrap;
         }
         .dqu-reward-tag.orb {
-            background: rgba(155, 89, 182, 0.2);
+            background: rgba(155, 89, 182, 0.22);
             color: #d7aefb;
-            border: 1px solid rgba(155, 89, 182, 0.4);
+            border: 1px solid rgba(155, 89, 182, 0.45);
         }
         .dqu-reward-tag.border {
-            background: rgba(52, 152, 219, 0.2);
+            background: rgba(52, 152, 219, 0.22);
             color: #70c5ff;
-            border: 1px solid rgba(52, 152, 219, 0.4);
+            border: 1px solid rgba(52, 152, 219, 0.45);
         }
         .dqu-reward-tag.item {
-            background: rgba(46, 204, 113, 0.2);
+            background: rgba(46, 204, 113, 0.22);
             color: #57f287;
-            border: 1px solid rgba(46, 204, 113, 0.4);
+            border: 1px solid rgba(46, 204, 113, 0.45);
         }
         .dqu-reward-tag.nitro {
-            background: rgba(241, 196, 15, 0.2);
+            background: rgba(241, 196, 15, 0.22);
             color: #f1c40f;
-            border: 1px solid rgba(241, 196, 15, 0.4);
+            border: 1px solid rgba(241, 196, 15, 0.45);
         }
         .dqu-reward-tag.other {
             background: rgba(148, 155, 164, 0.15);
             color: #dbdee1;
             border: 1px solid rgba(148, 155, 164, 0.3);
         }
+
         .dqu-progress-wrap {
             height: 6px;
             background: #1e1f22;
@@ -1747,11 +1971,15 @@ function createStyles(containerId) {
         }
         .dqu-progress-bar {
             height: 100%;
-            background: #5865f2;
+            background: linear-gradient(90deg, #5865f2, #7983f5);
             width: 0%;
             border-radius: 3px;
             transition: width 0.3s ease;
         }
+        .dqu-progress-bar.done {
+            background: linear-gradient(90deg, #23a55a, #2dc770);
+        }
+
         .dqu-quest-footer {
             display: flex;
             justify-content: space-between;
@@ -1759,6 +1987,8 @@ function createStyles(containerId) {
             font-size: 11px;
             color: #949ba4;
         }
+
+        /* Action Buttons */
         .dqu-actions {
             display: flex;
             gap: 6px;
@@ -1776,11 +2006,12 @@ function createStyles(containerId) {
             align-items: center;
             justify-content: center;
             gap: 6px;
-            transition: background 0.15s, opacity 0.15s;
+            transition: all 0.15s ease;
             flex: 1;
         }
         .dqu-btn:hover:not(:disabled) {
             background: #4752c4;
+            box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
         }
         .dqu-btn:disabled {
             opacity: 0.5;
@@ -1805,14 +2036,16 @@ function createStyles(containerId) {
             font-size: 11px;
             flex: none;
         }
+
+        /* Console Output */
         .dqu-console {
             background: #111214;
             border-radius: 6px;
-            padding: 8px;
+            padding: 8px 10px;
             font-family: Consolas, monospace;
             font-size: 11px;
             color: #23a55a;
-            height: 80px;
+            height: 75px;
             overflow-y: auto;
             white-space: pre-wrap;
             border: 1px solid rgba(255, 255, 255, 0.05);
